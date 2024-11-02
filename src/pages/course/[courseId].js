@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, setDoc, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '@/components/Layout';
 import { db } from '@/lib/firebaseConfig';
-import { FaArrowLeft, FaPlus } from 'react-icons/fa';
-import DataTable from 'react-data-table-component';
+import { FaArrowLeft, FaPlus, FaEdit, FaTrash, FaUpload } from 'react-icons/fa';
+import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 
 export default function CourseDetails() {
   const { query: { courseId }, back } = useRouter();
@@ -14,156 +15,227 @@ export default function CourseDetails() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ subjectCode: '', description: '', units: '', semester: '1st Sem' });
   const [selectedYearLevel, setSelectedYearLevel] = useState('1st Year');
-  const [subjects, setSubjects] = useState({});
+  const [subjects, setSubjects] = useState([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editSubjectId, setEditSubjectId] = useState(null);
 
   useEffect(() => {
     if (!courseId) return;
-
     const fetchCourseDetails = async () => {
       try {
-        const boardCoursesSnapshot = await getDocs(collection(db, 'Departments/Board Courses/Courses'));
-        const nonBoardCoursesSnapshot = await getDocs(collection(db, 'Departments/Non-Board Courses/Courses'));
+        const courseDocs = await getDocs(collection(db, 'Departments'));
+        const foundCourse = courseDocs.docs.flatMap(department => department.data().courses).find(course => course.id === courseId);
 
-        const boardCourses = boardCoursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const nonBoardCourses = nonBoardCoursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        const foundCourse = [...boardCourses, ...nonBoardCourses].find(course => course.id === courseId);
         if (foundCourse) {
           setCourse(foundCourse);
-          // Fetch subjects
-          const subjectsData = await getSubjects(foundCourse.id);
-          setSubjects(subjectsData);
-        } else {
-          setCourse(null);
+          setSubjects(await getSubjects(courseId));
         }
       } catch (error) {
-        console.error("Error fetching courses:", error);
+        console.error("Error fetching course details:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchCourseDetails();
   }, [courseId]);
 
-  const handleInputChange = ({ target: { name, value } }) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const getSubjects = async (courseId) => {
+    const subjectsSnapshot = await getDocs(collection(db, 'Subjects'));
+    return subjectsSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(subject => subject.courseId === courseId);
   };
 
-  const handleAddSubject = () => setShowModal(true);
+  const handleAddSubject = () => {
+    resetForm();
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({ subjectCode: '', description: '', units: '', semester: '1st Sem' });
+    setIsEditMode(false);
+    setEditSubjectId(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { subjectCode, description, units } = formData;
-
-    // Basic validation
-    if (!subjectCode || !description || !units) {
-      alert('Please fill in all fields');
-      return;
-    }
+    if (!validateFormData(formData)) return;
 
     const subjectData = {
-      subjectCode,
-      description,
-      units,
-      semester: formData.semester,
+      ...formData,
+      units: parseInt(formData.units, 10),
       yearLevel: selectedYearLevel,
+      courseId: courseId,
     };
 
     try {
-      // Create a new document in the Subjects collection under the corresponding course ID
-      const path = `Subjects/${courseId}`;
-      await setDoc(doc(db, path, subjectCode), subjectData);
-
-      setFormData({ subjectCode: '', description: '', units: '', semester: '1st Sem' });
+      if (isEditMode) {
+        await setDoc(doc(db, 'Subjects', editSubjectId), subjectData);
+        setSubjects(prev => prev.map(subject => (subject.id === editSubjectId ? subjectData : subject)));
+      } else {
+        await setDoc(doc(db, 'Subjects', formData.subjectCode), subjectData);
+        setSubjects(prev => [...prev, { id: formData.subjectCode, ...subjectData }]);
+      }
       setShowModal(false);
+      Swal.fire({ icon: 'success', title: 'Success!', text: isEditMode ? 'Subject updated!' : 'Subject added!' });
     } catch (error) {
       console.error("Error saving subject:", error);
+      Swal.fire({ icon: 'error', title: 'Error!', text: 'There was an error saving the subject.' });
     }
   };
 
-  if (loading) return <LoadingState />;
-  if (!course) return <NoCourseFound />;
+  const validateFormData = ({ subjectCode, description, units }) => {
+    if (!subjectCode || !description || isNaN(units) || units <= 0) {
+      Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please fill in all fields correctly.' });
+      return false;
+    }
+    return true;
+  };
+
+  const handleDeleteSubject = async (subjectId) => {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'Are you sure?',
+      text: 'This action cannot be undone!',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await deleteDoc(doc(db, 'Subjects', subjectId));
+        setSubjects(prev => prev.filter(subject => subject.id !== subjectId));
+        Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Subject has been deleted.' });
+      } catch (error) {
+        console.error("Error deleting subject:", error);
+        Swal.fire({ icon: 'error', title: 'Error!', text: 'There was an error deleting the subject.' });
+      }
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(worksheet);
+
+      validateAndImportSubjects(json);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const validateAndImportSubjects = async (data) => {
+    const invalidEntries = data.filter(entry => !validateFormData(entry));
+    if (invalidEntries.length > 0) {
+      return Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Some entries are invalid. Please check the data.' });
+    }
+
+    try {
+      await Promise.all(data.map(entry => {
+        const subjectData = { ...entry, units: parseInt(entry.units, 10), courseId };
+        return setDoc(doc(db, 'Subjects', entry.subjectCode), subjectData);
+      }));
+      setSubjects(await getSubjects(courseId));
+      Swal.fire({ icon: 'success', title: 'Success!', text: 'Subjects imported successfully!' });
+    } catch (error) {
+      console.error("Error importing subjects:", error);
+      Swal.fire({ icon: 'error', title: 'Error!', text: 'There was an error importing subjects.' });
+    }
+  };
 
   return (
     <Layout>
-      <motion.div initial={{ opacity: 0, translateY: -20 }} animate={{ opacity: 1, translateY: 0 }} transition={{ duration: 0.5 }} className="p-6">
+      <motion.div initial={{ opacity: 0, translateY: -20 }} animate={{ opacity: 1, translateY: 0 }} className="p-6">
         <button onClick={back} className="flex items-center mb-4 px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 transition">
           <FaArrowLeft className="mr-2" /> Back
         </button>
-        <h1 className="text-3xl font-bold mb-6 border-b pb-2">{course.name} ({course.id})</h1>
-        <div className="flex justify-end items-center space-x-4 mt-6">
-          <button onClick={handleAddSubject} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105">
+        <h1 className="text-3xl font-bold mb-6">{course?.name} ({course?.id})</h1>
+        <div className="flex justify-end space-x-4">
+        <input type="file" accept=".xlsx" onChange={handleFileUpload} className="hidden" id="file-upload" />
+          <label htmlFor="file-upload" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer transition-all duration-300 ease-in-out hover:bg-primary-dark hover:shadow-lg hover:transform hover:scale-105">
+            <FaUpload /> Upload Excel
+          </label>
+          <button onClick={handleAddSubject} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:scale-105 hover:bg-green-900">
             <FaPlus /> Add Subject
           </button>
-          <select className="rounded-lg bg-gray-100 border border-gray-300 text-gray-700 py-2 pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-green-500 transition" value={selectedYearLevel} onChange={({ target }) => setSelectedYearLevel(target.value)}>
+          <select value={selectedYearLevel} onChange={(e) => setSelectedYearLevel(e.target.value)} className="rounded-lg bg-gray-100 border py-2 pl-4 pr-8">
             {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(year => <option key={year}>{year}</option>)}
           </select>
         </div>
 
+        {['1st Sem', '2nd Sem'].map((semester) => {
+          const semesterSubjects = subjects.filter(subject => subject.semester === semester && subject.yearLevel === selectedYearLevel);
+          return semesterSubjects.length > 0 && (
+            <div key={semester}>
+              <h2 className="text-2xl font-semibold mt-8">{semester}</h2>
+              <table className="min-w-full bg-white shadow-md rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-200 text-gray-600">
+                    <th className="py-3 px-4">Code</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Units</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {semesterSubjects.map(subject => (
+                    <tr key={subject.id} className="border-b border-gray-300">
+                      <td className="py-2 px-4">{subject.subjectCode}</td>
+                      <td className="py-2 px-4">{subject.description}</td>
+                      <td className="py-2 px-4">{subject.units}</td>
+                      <td className="py-2 px-4 text-center">
+                        <button onClick={() => { setFormData(subject); setIsEditMode(true); setEditSubjectId(subject.id); setShowModal(true); }} className="text-yellow-500 hover:text-yellow-700">
+                          <FaEdit />
+                        </button>
+                        <button onClick={() => handleDeleteSubject(subject.id)} className="text-red-500 hover:text-red-700 ml-2">
+                          <FaTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+
         <AnimatePresence>
-          {showModal && <Modal {...{ onClose: () => setShowModal(false), onSubmit: handleSubmit, formData, onInputChange: handleInputChange, selectedYearLevel }} />}
+          {showModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="bg-white rounded-lg p-6 w-1/3">
+                <h2 className="text-xl font-semibold">{isEditMode ? 'Edit Subject' : 'Add Subject'}</h2>
+                <form onSubmit={handleSubmit} className="mt-4">
+                  <div className="mb-4">
+                    <label className="block mb-2" htmlFor="subjectCode">Subject Code</label>
+                    <input type="text" id="subjectCode" value={formData.subjectCode} onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })} required className="border border-gray-300 rounded px-4 py-2 w-full" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block mb-2" htmlFor="description">Description</label>
+                    <input type="text" id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} required className="border border-gray-300 rounded px-4 py-2 w-full" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block mb-2" htmlFor="units">Units</label>
+                    <input type="number" id="units" value={formData.units} onChange={(e) => setFormData({ ...formData, units: e.target.value })} required className="border border-gray-300 rounded px-4 py-2 w-full" />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block mb-2" htmlFor="semester">Semester</label>
+                    <select id="semester" value={formData.semester} onChange={(e) => setFormData({ ...formData, semester: e.target.value })} className="border border-gray-300 rounded px-4 py-2 w-full">
+                      {['1st Sem', '2nd Sem'].map(sem => <option key={sem} value={sem}>{sem}</option>)}
+                    </select>
+                  </div>
+                  <button type="submit" className="w-full bg-blue-600 text-white rounded py-2 hover:bg-blue-700 transition">{isEditMode ? 'Update Subject' : 'Add Subject'}</button>
+                  <button type="button" onClick={() => setShowModal(false)} className="w-full mt-2 text-gray-500">Cancel</button>
+                </form>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </motion.div>
     </Layout>
   );
 }
-
-const LoadingState = () => (
-  <Layout>
-    <CenteredMessage message="Loading..." />
-  </Layout>
-);
-
-const NoCourseFound = () => (
-  <Layout>
-    <CenteredMessage message="No course found!" className="text-red-600" />
-  </Layout>
-);
-
-const CenteredMessage = ({ message, className = '' }) => (
-  <div className="flex items-center justify-center h-screen">
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className={`text-xl font-semibold ${className}`}>{message}</motion.div>
-  </div>
-);
-
-const Modal = ({ onClose, onSubmit, formData, onInputChange, selectedYearLevel }) => (
-  <motion.div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-    <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.3 }} className="bg-white p-6 rounded-lg shadow-lg w-11/12 sm:w-96">
-      <h2 className="text-2xl font-semibold mb-6 text-center text-gray-800">Add New Subject</h2>
-      <form onSubmit={onSubmit} className="space-y-4">
-        {['subjectCode', 'description', 'units', 'semester'].map((field, index) => (
-          <Label key={field} field={field} value={formData[field]} onChange={onInputChange} isSelect={field === 'semester'} >
-            {index === 3 ? ['1st Sem', '2nd Sem', 'Summer'] : undefined}
-          </Label>
-        ))}
-        <Label field="yearLevel" value={selectedYearLevel} readOnly />
-        <div className="flex justify-end space-x-3 mt-6">
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition">Cancel</button>
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Add Subject</button>
-        </div>
-      </form>
-    </motion.div>
-  </motion.div>
-);
-
-const Label = ({ field, value, onChange, isSelect, readOnly, children }) => (
-  <label className="block">
-    <span className="text-gray-700">{field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-    {isSelect ? (
-      <select name={field} value={value} onChange={onChange} className="mt-1 block p-3 w-full border-gray-300 rounded-md shadow-sm focus:ring focus:ring-green-500">
-        {children.map(option => <option key={option}>{option}</option>)}
-      </select>
-    ) : (
-      <input
-        type={field === 'units' ? 'number' : 'text'}
-        name={field}
-        value={value}
-        onChange={onChange}
-        readOnly={readOnly}
-        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring focus:ring-green-500"
-        required
-      />
-    )}
-  </label>
-);
