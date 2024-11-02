@@ -23,11 +23,14 @@ export default function CourseDetails() {
     if (!courseId) return;
     const fetchCourseDetails = async () => {
       try {
-        const courseDocs = await getDocs(collection(db, 'Departments'));
-        const foundCourse = courseDocs.docs.flatMap(department => department.data().courses).find(course => course.id === courseId);
+        const boardCourses = await getDocs(collection(db, 'Departments/Board Courses/Courses'));
+        const nonBoardCourses = await getDocs(collection(db, 'Departments/Non-Board Courses/Courses'));
+
+        const allCourses = [...boardCourses.docs, ...nonBoardCourses.docs];
+        const foundCourse = allCourses.find((doc) => doc.id === courseId)?.data();
 
         if (foundCourse) {
-          setCourse(foundCourse);
+          setCourse({ id: courseId, ...foundCourse });
           setSubjects(await getSubjects(courseId));
         }
       } catch (error) {
@@ -36,6 +39,7 @@ export default function CourseDetails() {
         setLoading(false);
       }
     };
+
     fetchCourseDetails();
   }, [courseId]);
 
@@ -157,7 +161,7 @@ export default function CourseDetails() {
         <h1 className="text-3xl font-bold mb-6">{course?.name} ({course?.id})</h1>
         <div className="flex justify-end space-x-4">
         <input type="file" accept=".xlsx" onChange={handleFileUpload} className="hidden" id="file-upload" />
-          <label htmlFor="file-upload" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer transition-all duration-300 ease-in-out hover:bg-primary-dark hover:shadow-lg hover:transform hover:scale-105">
+          <label htmlFor="file-upload" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer transition-all duration-300 ease-in-out hover:bg-primary-dark hover:shadow-lg hover:transform hover:scale-10">
             <FaUpload /> Upload Excel
           </label>
           <button onClick={handleAddSubject} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:scale-105 hover:bg-green-900">
@@ -184,15 +188,15 @@ export default function CourseDetails() {
                 </thead>
                 <tbody>
                   {semesterSubjects.map(subject => (
-                    <tr key={subject.id} className="border-b border-gray-300">
+                    <tr key={subject.id} className="border-b border-gray-300 text-center">
                       <td className="py-2 px-4">{subject.subjectCode}</td>
                       <td className="py-2 px-4">{subject.description}</td>
                       <td className="py-2 px-4">{subject.units}</td>
-                      <td className="py-2 px-4 text-center">
-                        <button onClick={() => { setFormData(subject); setIsEditMode(true); setEditSubjectId(subject.id); setShowModal(true); }} className="text-yellow-500 hover:text-yellow-700">
+                      <td className="py-2 px-4">
+                        <button onClick={() => { setFormData(subject); setIsEditMode(true); setEditSubjectId(subject.id); setShowModal(true); }} className="text-primary bg-transparent hover:bg-slate-300 hover:text-primary-dark">
                           <FaEdit />
                         </button>
-                        <button onClick={() => handleDeleteSubject(subject.id)} className="text-red-500 hover:text-red-700 ml-2">
+                        <button onClick={() => handleDeleteSubject(subject.id)} className="text-red-600 bg-transparent hover:bg-slate-300 hover:text-red-800">
                           <FaTrash />
                         </button>
                       </td>
