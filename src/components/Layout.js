@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaChalkboardTeacher, FaUniversity, FaHome, FaUsers, FaBook, FaBars, FaTimes } from 'react-icons/fa';
+import { FaChalkboardTeacher, FaUniversity, FaHome, FaUsers, FaBook, FaBars, FaTimes, FaCalendar } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 
@@ -9,6 +9,7 @@ const navItems = [
   { href: "/staffs", icon: <FaChalkboardTeacher />, label: "Staffs" },
   { href: "/students", icon: <FaUsers />, label: "Students" },
   { href: "/subjects", icon: <FaBook />, label: "Subjects" },
+  { href: "/schedule", icon: <FaCalendar />, label: "Schedule" },
 ];
 
 const NavigationItem = ({ href, icon, label, isActive, onClick }) => (
@@ -23,7 +24,7 @@ const NavigationItem = ({ href, icon, label, isActive, onClick }) => (
 );
 
 const LoadingScreen = () => {
-  const dots = [0, 1, 2, 3]; // Array for dots animation
+  const dots = [0, 1, 2, 3];
   return (
     <motion.div
       className="flex flex-col items-center justify-center h-full"
@@ -37,8 +38,8 @@ const LoadingScreen = () => {
             key={index}
             className="w-2 h-2 bg-blue-600 rounded-full mx-1"
             animate={{
-              scale: [1, 1.5, 1], // Scale animation for dots
-              opacity: [1, 0.5, 1], // Opacity animation for dots
+              scale: [1, 1.5, 1],
+              opacity: [1, 0.5, 1],
             }}
             transition={{
               duration: 0.6,
@@ -46,7 +47,7 @@ const LoadingScreen = () => {
               repeatDelay: 0.1,
               ease: "easeInOut",
               times: [0, 0.5, 1],
-              delay: index * 0.15, // Delay each dot's animation
+              delay: index * 0.15,
             }}
           />
         ))}
@@ -68,17 +69,17 @@ export default function Layout ({ children }) {
   const router = useRouter();
   const activeTab = router.pathname;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [loading, setLoading] = useState(true); // Loading state
+  const [loading, setLoading] = useState(true);
 
   const toggleMenu = () => {
     setIsMenuOpen((prev) => !prev);
   };
 
-  // Simulate loading time for demonstration
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      setLoading(false); // Set loading to false after 2 seconds
-    }, 2000); // Change this to your actual loading logic
+      setLoading(false);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -103,7 +104,7 @@ export default function Layout ({ children }) {
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }} // Smooth easing
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           className="absolute top-16 left-0 right-0 bg-gray-800 text-white md:hidden z-10"
         >
           <ul className="space-y-2 p-4">
@@ -116,7 +117,7 @@ export default function Layout ({ children }) {
                 isActive={activeTab === href}
                 onClick={() => {
                   setIsMenuOpen(false);
-                  router.push(href); // Ensure it navigates correctly
+                  router.push(href);
                 }}
               />
             ))}
@@ -142,7 +143,7 @@ export default function Layout ({ children }) {
                   icon={icon}
                   label={label}
                   isActive={activeTab === href}
-                  onClick={() => {}} // No need for onClick in sidebar
+                  onClick={() => {}}
                 />
               ))}
             </ul>
@@ -152,9 +153,9 @@ export default function Layout ({ children }) {
         {/* Main Content Area */}
         <main className="flex-1 p-8 overflow-y-auto text-primary">
           {loading ? (
-            <LoadingScreen /> // Use the LoadingScreen component
+            <LoadingScreen />
           ) : (
-            children // Render children when not loading
+            children
           )}
         </main>
       </div>
@@ -162,9 +163,9 @@ export default function Layout ({ children }) {
       {/* Main Content Area for Mobile */}
       <main className="flex-1 p-8 overflow-auto text-primary md:hidden">
         {loading ? (
-          <LoadingScreen /> // Use the LoadingScreen component
+          <LoadingScreen />
         ) : (
-          children // Render children when not loading
+          children
         )}
       </main>
     </div>

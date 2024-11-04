@@ -243,7 +243,7 @@ export default function Students() {
             <button type="submit" className="bg-blue-600 text-white py-2 px-4 rounded-md mr-2">
               <FaSave className="inline mr-1" /> Save
             </button>
-            <button type="button" onClick={resetForm} className="bg-gray-400 text-white py-2 px-4 rounded-md">
+            <button type="button" onClick={resetForm} className="bg-gray-300 text-white py-2 px-4 rounded-md hover:bg-gray-400">
               <FaUndo className="inline mr-1" /> Reset
             </button>
           </div>

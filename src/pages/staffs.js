@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import DataTable from 'react-data-table-component';
 import Layout from '@/components/Layout';
@@ -8,11 +8,21 @@ import { db } from '@/lib/firebaseConfig';
 import { FaEdit, FaTrash, FaSearch, FaSave, FaUndo } from 'react-icons/fa';
 
 const GENDERS = ['Male', 'Female', 'Other'];
-const POSITIONS = ['Teacher', 'Course Head', 'Department Head', 'Registrar', 'Admin'];
+const POSITIONS = ['Teacher', 'Dean', 'Registrar', 'Admin'];
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState([]);
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', gender: '', address: '', mobileNumber: '', position: '', department: '', course: '' });
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    gender: '',
+    address: '',
+    mobileNumber: '',
+    position: '',
+    department: '',
+    course: '',
+  });
+  const [currentStaffId, setCurrentStaffId] = useState('');
   const [departments, setDepartments] = useState([]);
   const [allCourses, setAllCourses] = useState({});
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -40,23 +50,73 @@ export default function StaffManagement() {
   };
 
   useEffect(() => {
+    fetchCurrentStaffId();
     fetchData();
   }, []);
 
   const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
+  const fetchCurrentStaffId = async () => {
+    const { staffId } = await getNextStaffId();
+    setCurrentStaffId(staffId);
+  };
+
+  const getNextStaffId = async () => {
+    const currentYear = '2008';
+    const staffRef = collection(db, 'Staff');
+
+    const latestStaffQuery = query(
+      staffRef,
+      orderBy('staffId', 'desc'),
+      limit(1)
+    );
+
+    const latestStaffSnapshot = await getDocs(latestStaffQuery);
+
+    let newIdNumber = !latestStaffSnapshot.empty
+      ? parseInt(latestStaffSnapshot.docs[0].data().staffId.split('-')[1], 10) + 1
+      : 1;
+
+    return {
+      staffId: `${currentYear}-${newIdNumber.toString().padStart(5, '0')}`,
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const staffRef = selectedStaff ? doc(db, 'Staff', selectedStaff.id) : collection(db, 'Staff');
+    const { firstName, lastName, gender, address, mobileNumber, position, department, course } = formData;
+
     try {
       if (selectedStaff) {
-        await updateDoc(staffRef, formData);
+        const staffRef = doc(db, 'Staff', selectedStaff.id);
+        await updateDoc(staffRef, {
+          firstName,
+          lastName,
+          gender,
+          address,
+          mobileNumber,
+          position,
+          department,
+          course,
+        });
+        Swal.fire('Updated!', 'Staff member has been updated.', 'success');
       } else {
-        await addDoc(staffRef, formData);
+        const { staffId } = await getNextStaffId();
+        await addDoc(collection(db, 'Staff'), {
+          firstName,
+          lastName,
+          gender,
+          address,
+          mobileNumber,
+          position,
+          department,
+          course,
+          staffId,
+        });
+        Swal.fire('Success!', 'Staff member has been added.', 'success');
       }
-      Swal.fire('Success!', `Staff has been ${selectedStaff ? 'updated' : 'added'}.`, 'success');
+      fetchData();
       resetForm();
-      await fetchData();
     } catch (error) {
       console.error("Error saving staff data: ", error);
       Swal.fire('Error!', 'There was an error saving the staff data.', 'error');
@@ -65,8 +125,8 @@ export default function StaffManagement() {
 
   const handleEdit = (staffMember) => {
     setFormData(staffMember);
+    setCurrentStaffId(staffMember.staffId);
     setSelectedStaff(staffMember);
-    // Scroll to the top of the page
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -91,7 +151,17 @@ export default function StaffManagement() {
   };
 
   const resetForm = () => {
-    setFormData({ firstName: '', lastName: '', gender: '', address: '', mobileNumber: '', position: '', department: '', course: '' });
+    setFormData({
+      firstName: '',
+      lastName: '',
+      gender: '',
+      address: '',
+      mobileNumber: '',
+      position: '',
+      department: '',
+      course: '',
+    });
+    setCurrentStaffId('');
     setSelectedStaff(null);
   };
 
@@ -100,6 +170,7 @@ export default function StaffManagement() {
   ), [staff, searchQuery]);
 
   const columns = useMemo(() => [
+    { name: 'Staff ID', selector: row => row.staffId, sortable: true },
     { name: 'First Name', selector: row => row.firstName, sortable: true },
     { name: 'Last Name', selector: row => row.lastName, sortable: true },
     { name: 'Position', selector: row => row.position, sortable: true },
@@ -165,16 +236,24 @@ export default function StaffManagement() {
 
         <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6 mb-6">
           <h2 className="text-lg font-bold mb-4">{selectedStaff ? 'Edit Staff' : 'Add Staff'}</h2>
+
+          <input
+            type="text"
+            value={currentStaffId}
+            readOnly
+            className="border border-gray-300 p-3 rounded-md bg-gray-100 cursor-not-allowed mb-4"
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {['firstName', 'lastName', 'address', 'mobileNumber'].map(field => (
               <input
                 key={field}
                 type="text"
-                placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-                className="p-2 border rounded-md"
                 value={formData[field]}
                 onChange={(e) => handleChange(field, e.target.value)}
                 required
+                className="border border-gray-300 p-3 rounded-md"
+                placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
               />
             ))}
             <select className="p-2 border rounded-md" value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)} required>
@@ -187,26 +266,29 @@ export default function StaffManagement() {
             </select>
             <select className="p-2 border rounded-md" value={formData.department} onChange={(e) => handleChange('department', e.target.value)} required>
               <option value="">Select Department</option>
-              {departments.map(department => <option key={department.id} value={department.id}>{department.id}</option>)}
+              {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
             </select>
-            <select className="p-2 border rounded-md" value={formData.course} onChange={(e) => handleChange('course', e.target.value)} disabled={!formData.department}>
+            <select className="p-2 border rounded-md" value={formData.course} onChange={(e) => handleChange('course', e.target.value)} required>
               <option value="">Select Course</option>
-              {(allCourses[formData.department] || []).map(course => <option key={course.id} value={course.id}>{course.id}</option>)}
+              {formData.department && allCourses[formData.department]?.map(course => (
+                <option key={course.id} value={course.id}>{course.name}</option>
+              ))}
             </select>
           </div>
           <div className="flex justify-end space-x-2 mt-5">
-          <button type="submit" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"><FaSave className="inline mr-1" />{selectedStaff ? 'Update Staff' : 'Add Staff'}</button>
+            <button type="submit" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"><FaSave className="inline mr-1" />{selectedStaff ? 'Update Staff' : 'Save'}</button>
             <button type="button" onClick={resetForm} className="bg-gray-300 text-white py-2 px-4 rounded-md hover:bg-gray-400"><FaUndo className="inline mr-1" />Reset</button>
           </div>
         </form>
 
         <DataTable
+          title="Staff List"
           columns={columns}
           data={filteredStaff}
           customStyles={customStyles}
+          pagination
           subHeader
           subHeaderComponent={subHeaderComponentMemo}
-          pagination
         />
       </motion.div>
     </Layout>

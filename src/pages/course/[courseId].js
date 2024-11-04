@@ -158,7 +158,7 @@ export default function CourseDetails() {
         <button onClick={back} className="flex items-center mb-4 px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 transition">
           <FaArrowLeft className="mr-2" /> Back
         </button>
-        <h1 className="text-3xl font-bold mb-6">{course?.name} ({course?.id})</h1>
+        <h1 className="text-2xl font-bold mb-6">{course?.name} ({course?.id})</h1>
         <div className="flex justify-end space-x-4">
         <input type="file" accept=".xlsx" onChange={handleFileUpload} className="hidden" id="file-upload" />
           <label htmlFor="file-upload" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer transition-all duration-300 ease-in-out hover:bg-primary-dark hover:shadow-lg hover:transform hover:scale-10">
