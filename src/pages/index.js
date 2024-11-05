@@ -1,17 +1,54 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebaseConfig';
+import Swal from 'sweetalert2';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 500);
+
+    const staffQuery = query(collection(db, 'Staff'), where('username', '==', username));
+    const querySnapshot = await getDocs(staffQuery);
+
+    if (querySnapshot.empty) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Username Not Found',
+        text: 'Please check your username and try again.',
+      });
+      return;
+    }
+
+    const staffData = querySnapshot.docs[0].data();
+
+    if (staffData.password === password) {
+      localStorage.setItem('isAuthenticated', 'true');
+      localStorage.setItem("userID", staffData.staffID);
+      localStorage.setItem("userPosition", staffData.position);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Login Successful',
+        text: 'Redirecting to the dashboard...',
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Incorrect Password',
+        text: 'Please try again.',
+      });
+    }
   };
 
   return (
@@ -30,7 +67,7 @@ export default function Login() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -40,22 +77,19 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary-dark"
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary-dark transition duration-300 ease-in-out transform hover:scale-105"
           >
             Login
           </button>
         </form>
         <div className="mt-4 text-center">
-          <a href="/forgot" className="text-secondary">Forgot Password?</a>
-        </div>
-        <div className="mt-2 text-center">
-          <a href="/register" className="text-secondary">Don't have an account? Register</a>
+          <a href="/forgot" className="text-secondary hover:underline">Forgot Password?</a>
         </div>
       </motion.div>
     </div>

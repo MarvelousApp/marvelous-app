@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, setDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import DataTable from 'react-data-table-component';
 import Layout from '@/components/Layout';
@@ -8,7 +8,7 @@ import { db } from '@/lib/firebaseConfig';
 import { FaEdit, FaTrash, FaSearch, FaSave, FaUndo } from 'react-icons/fa';
 
 const GENDERS = ['Male', 'Female', 'Other'];
-const POSITIONS = ['Teacher', 'Dean', 'Registrar', 'Admin'];
+const POSITIONS = ['Teacher', 'Dean', 'Registrar'];
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState([]);
@@ -30,7 +30,10 @@ export default function StaffManagement() {
 
   const fetchData = async () => {
     try {
-      const staffDocs = await getDocs(collection(db, 'Staff'));
+      const staffQuery = query(
+        collection(db, 'Staff'), where("position", "!=", "Admin"), orderBy('staffId', 'asc')
+      );
+      const staffDocs = await getDocs(staffQuery);
       setStaff(staffDocs.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
       const deptSnapshot = await getDocs(collection(db, 'Departments'));
@@ -96,22 +99,28 @@ export default function StaffManagement() {
           address,
           mobileNumber,
           position,
-          department,
-          course,
+          department: position === 'Registrar' ? '' : department,
+          course: position === 'Registrar' ? '' : course,
         });
         Swal.fire('Updated!', 'Staff member has been updated.', 'success');
       } else {
         const { staffId } = await getNextStaffId();
-        await addDoc(collection(db, 'Staff'), {
+        const username = staffId;
+        const password = `${firstName.slice(0, 2)}${lastName}`.toLowerCase();
+
+        const staffRef = doc(db, 'Staff', staffId);
+        await setDoc(staffRef, {
           firstName,
           lastName,
           gender,
           address,
           mobileNumber,
           position,
-          department,
-          course,
+          department: position === 'Registrar' ? '' : department,
+          course: position === 'Registrar' ? '' : course,
           staffId,
+          username,
+          password,
         });
         Swal.fire('Success!', 'Staff member has been added.', 'success');
       }
@@ -232,45 +241,78 @@ export default function StaffManagement() {
   return (
     <Layout>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h1 className="text-3xl font-bold mb-6 border-b pb-2">Staff Management</h1>
-
-        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4">{selectedStaff ? 'Edit Staff' : 'Add Staff'}</h2>
-
-          <input
-            type="text"
-            value={currentStaffId}
-            readOnly
-            className="border border-gray-300 p-3 rounded-md bg-gray-100 cursor-not-allowed mb-4"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {['firstName', 'lastName', 'address', 'mobileNumber'].map(field => (
-              <input
-                key={field}
-                type="text"
-                value={formData[field]}
-                onChange={(e) => handleChange(field, e.target.value)}
-                required
-                className="border border-gray-300 p-3 rounded-md"
-                placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-              />
-            ))}
-            <select className="p-2 border rounded-md" value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)} required>
+        <h1 className="text-3xl font-bold mb-4">Staff Management</h1>
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md mb-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="First Name"
+              value={formData.firstName}
+              onChange={(e) => handleChange('firstName', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Last Name"
+              value={formData.lastName}
+              onChange={(e) => handleChange('lastName', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            />
+            <select
+              value={formData.gender}
+              onChange={(e) => handleChange('gender', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            >
               <option value="">Select Gender</option>
               {GENDERS.map(gender => <option key={gender} value={gender}>{gender}</option>)}
             </select>
-            <select className="p-2 border rounded-md" value={formData.position} onChange={(e) => handleChange('position', e.target.value)} required>
+            <input
+              type="text"
+              placeholder="Mobile Number"
+              value={formData.mobileNumber}
+              onChange={(e) => handleChange('mobileNumber', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Address"
+              value={formData.address}
+              onChange={(e) => handleChange('address', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            />
+            <select
+              value={formData.position}
+              onChange={(e) => handleChange('position', e.target.value)}
+              className="border rounded-md p-2"
+              required
+            >
               <option value="">Select Position</option>
               {POSITIONS.map(position => <option key={position} value={position}>{position}</option>)}
             </select>
-            <select className="p-2 border rounded-md" value={formData.department} onChange={(e) => handleChange('department', e.target.value)} required>
+            <select
+              value={formData.department}
+              onChange={(e) => handleChange('department', e.target.value)}
+              className="border rounded-md p-2"
+              disabled={formData.position === 'Registrar'}
+              required={formData.position !== 'Registrar'}
+            >
               <option value="">Select Department</option>
               {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
             </select>
-            <select className="p-2 border rounded-md" value={formData.course} onChange={(e) => handleChange('course', e.target.value)} required>
+            <select
+              value={formData.course}
+              onChange={(e) => handleChange('course', e.target.value)}
+              className="border rounded-md p-2"
+              disabled={formData.position === 'Registrar'}
+              required={formData.position !== 'Registrar'}
+            >
               <option value="">Select Course</option>
-              {formData.department && allCourses[formData.department]?.map(course => (
+              {(allCourses[formData.department] || []).map(course => (
                 <option key={course.id} value={course.id}>{course.name}</option>
               ))}
             </select>
@@ -280,15 +322,13 @@ export default function StaffManagement() {
             <button type="button" onClick={resetForm} className="bg-gray-300 text-white py-2 px-4 rounded-md hover:bg-gray-400"><FaUndo className="inline mr-1" />Reset</button>
           </div>
         </form>
-
         <DataTable
-          title="Staff List"
           columns={columns}
           data={filteredStaff}
           customStyles={customStyles}
-          pagination
           subHeader
           subHeaderComponent={subHeaderComponentMemo}
+          pagination
         />
       </motion.div>
     </Layout>

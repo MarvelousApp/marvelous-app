@@ -102,15 +102,15 @@ export default function ScheduleDetails() {
   const handleSaveClick = async (subjectId) => {
     const { room, teacher, timeStart, timeEnd, days } = editData;
 
-  const conflict = await checkAvailability(subjectId, room, teacher, timeStart, timeEnd, days);
-  if (conflict) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Scheduling Conflict',
-      text: 'The selected room or teacher is already booked during this time.',
-    });
-    return;
-  }
+    const conflict = await checkAvailability(subjectId, room, teacher, timeStart, timeEnd, days);
+    if (conflict) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Scheduling Conflict',
+        text: 'The selected room or teacher is already booked during this time.',
+      });
+      return;
+    }
 
     await setDoc(doc(collection(db, 'Schedules'), `${courseId}-${subjectId}`), {
       courseId, subjectId, ...editData
@@ -135,9 +135,9 @@ export default function ScheduleDetails() {
         {Object.keys(subjectsByYear).map((yearLevel) => (
           <div key={yearLevel} className="mb-6">
             <h2 className="text-xl font-bold mb-2">{yearLevel}</h2>
-            <table className="min-w-full bg-white border border-gray-300">
+            <table className="min-w-full bg-white border border-gray-300 overflow-x-auto">
               <thead>
-                <tr className="bg-gray-200">
+                <tr className="bg-gray-200 hidden md:table-row">
                   <th className="border px-4 py-2">Subject Code</th>
                   <th className="border px-4 py-2">Room</th>
                   <th className="border px-4 py-2">Teacher</th>
@@ -148,26 +148,33 @@ export default function ScheduleDetails() {
               </thead>
               <tbody>
                 {subjectsByYear[yearLevel].map((subject) => (
-                  <tr key={subject.id}>
-                    <td className="border px-4 py-2">{subject.subjectCode}</td>
+                  <tr key={subject.id} className="md:table-row flex flex-col md:flex-row border-b md:border-none mb-2 md:mb-0 p-4 md:p-0">
                     <td className="border px-4 py-2">
+                      <span className="md:hidden font-bold">Subject Code:</span>
+                      {subject.subjectCode}
+                    </td>
+                    <td className="border px-4 py-2">
+                      <span className="md:hidden font-bold">Room:</span>
                       {editingSubject === subject.id ? (
                         <input type="text" value={editData.room || ''} onChange={(e) => handleInputChange('room', e.target.value)} className="border rounded px-2 py-1" />
                       ) : subject.room || ''}
                     </td>
                     <td className="border px-4 py-2">
+                      <span className="md:hidden font-bold">Teacher:</span>
                       {editingSubject === subject.id ? (
                         <Select options={teacherOptions} value={teacherOptions.find((opt) => opt.value === editData.teacher)}
                           onChange={(selected) => handleInputChange('teacher', selected?.value || '')} placeholder="Select Teacher" isClearable />
                       ) : subject.teacher || ''}
                     </td>
                     <td className="border px-4 py-2">
+                      <span className="md:hidden font-bold">Days:</span>
                       {editingSubject === subject.id ? (
                         <Select options={dayOptions} value={dayOptions.filter((opt) => editData.days?.includes(opt.value))}
                           onChange={(selectedOptions) => handleInputChange('days', selectedOptions.map((opt) => opt.value))} placeholder="Select Days" isMulti isClearable />
                       ) : subject.days?.join(', ') || ''}
                     </td>
                     <td className="border px-4 py-2">
+                      <span className="md:hidden font-bold">Time:</span>
                       {editingSubject === subject.id ? (
                         <>
                           <input type="time" value={editData.timeStart || ''} onChange={(e) => handleInputChange('timeStart', e.target.value)} className="border rounded px-2 py-1 mr-1" />
@@ -175,7 +182,7 @@ export default function ScheduleDetails() {
                         </>
                       ) : `${subject.timeStart || ''} - ${subject.timeEnd || ''}`}
                     </td>
-                    <td className="border px-4 py-2">
+                    <td className="border px-4 py-2 text-center">
                       {editingSubject === subject.id ? (
                         <>
                           <button onClick={() => handleSaveClick(subject.id)} className="text-green-600 mr-2 bg-transparent hover:bg-slate-300"><FaCheck /></button>
@@ -189,6 +196,7 @@ export default function ScheduleDetails() {
                 ))}
               </tbody>
             </table>
+
           </div>
         ))}
       </motion.div>
