@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebaseConfig';
 import Swal from 'sweetalert2';
+import { setLocalStorageItem } from '@/lib/storageHelper';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -28,9 +29,9 @@ export default function Login() {
     const staffData = querySnapshot.docs[0].data();
 
     if (staffData.password === password) {
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem("userID", staffData.staffID);
-      localStorage.setItem("userPosition", staffData.position);
+      setLocalStorageItem('isAuthenticated', 'true');
+      setLocalStorageItem("userID", staffData.staffID);
+      setLocalStorageItem("userPosition", staffData.position);
 
       Swal.fire({
         icon: 'success',
