@@ -4,15 +4,33 @@ import { FaSearch, FaSave, FaUndo } from 'react-icons/fa';
 import Layout from '@/components/Layout';
 import DataTable from 'react-data-table-component';
 import { db } from '@/lib/firebaseConfig';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, limit, setDoc } from 'firebase/firestore';
 import Swal from 'sweetalert2';
+import { FaEdit, FaTrashAlt } from 'react-icons/fa';
 
-const SEMESTERS = { first: '1st Sem', second: '2nd Sem', summer: 'Summer' };
-const GENDERS = { male: 'Male', female: 'Female', other: 'Other' };
+const SEMESTERS = {
+  '1st Sem': '1st Sem',
+  '2nd Sem': '2nd Sem',
+  'Summer': 'Summer'
+};
+
+const YEAR_LEVELS = {
+  '1st Year': '1st Year',
+  '2nd Year': '2nd Year',
+  '3rd Year': '3rd Year',
+  '4th Year': '4th Year'
+};
+
+const GENDERS = {
+  male: 'Male',
+  female: 'Female',
+  other: 'Other'
+};
+
 const INITIAL_FORM_STATE = {
   firstName: '', middleName: '', lastName: '', gender: '',
   province: '', municipality: '', barangay: '', street: '',
-  mobileNumber: '', dob: '', course: '', department: '', semester: ''
+  mobileNumber: '', dob: '', course: '', department: '', semester: '', yearLevel: ''
 };
 
 const getCurrentSchoolYear = () => {
@@ -24,12 +42,17 @@ const Select = ({ value, onChange, options = [], placeholder, disabled }) => (
   <select value={value} onChange={onChange} required disabled={disabled} className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
     <option value="">{placeholder}</option>
     {options.length > 0 ? (
-      options.map(({ code, name }) => <option key={code} value={code}>{name}</option>)
+      options.map(({ code, name }, index) => (
+        <option key={code || index} value={code}>
+          {name}
+        </option>
+      ))
     ) : (
       <option value="" disabled>No options available</option>
     )}
   </select>
 );
+
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -43,15 +66,11 @@ export default function Students() {
   const [barangays, setBarangays] = useState([]);
   const [currentSchoolId, setCurrentSchoolId] = useState('');
 
-  const fetchData = useCallback(async (url, setter) => {
-    try {
-      const response = await fetch(url);
-      setter(await response.json());
-    } catch (error) {
-      console.error(`Failed to fetch data from ${url}`, error);
-      Swal.fire('Error!', 'There was an error fetching data.', 'error');
-    }
-  }, []);
+  const fetchData = (url, setter) => {
+    fetch(url)
+      .then(response => response.json())
+      .then(data => setter(data));
+  };
 
   useEffect(() => {
     fetchData('https://psgc.gitlab.io/api/provinces', setProvinces);
@@ -69,7 +88,13 @@ export default function Students() {
     try {
       const studentsCollection = collection(db, 'Students');
       const studentSnapshot = await getDocs(studentsCollection);
-      setStudents(studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const studentsData = studentSnapshot.docs.map(doc => ({
+        id: doc.id,
+        studentId: doc.data().studentId,
+        ...doc.data()
+      }));
+
+      setStudents(studentsData);
     } catch (error) {
       console.error('Error fetching students: ', error);
       Swal.fire('Error!', 'There was an error fetching the student data.', 'error');
@@ -119,24 +144,38 @@ export default function Students() {
   };
 
   const handleStudentSubmit = async (studentData) => {
-    const { studentId } = await getNextStudentId();
     const schoolYear = getCurrentSchoolYear();
-    try {
-      await addDoc(collection(db, 'Students'), { ...studentData, schoolYear, studentId });
-      Swal.fire('Success!', 'Student has been added.', 'success');
-      fetchStudents();
-    } catch (error) {
-      Swal.fire('Error!', 'There was an error saving the student data.', 'error');
-    }
-  };
+    const studentId = currentStudent ? currentStudent.id : await getNextStudentId().studentId;
 
-  const handleStudentUpdate = async (studentId, updatedData) => {
+    const username = studentId;
+    const password = `${studentData.firstName.slice(0, 2)}${studentData.lastName.charAt(0).toUpperCase()}${studentData.lastName.slice(1).toLowerCase()}`;
+
     try {
-      await updateDoc(doc(db, 'Students', studentId), updatedData);
-      Swal.fire('Success!', 'Student has been updated.', 'success');
-      fetchStudents();
+      if (currentStudent) {
+        await updateDoc(doc(db, 'Students', currentStudent.id), {
+          ...studentData,
+          schoolYear,
+          studentId,
+          username,
+          password
+        });
+        Swal.fire('Success!', 'Student data has been updated.', 'success');
+      } else {
+        await setDoc(doc(db, 'Students', studentId), {
+          ...studentData,
+          schoolYear,
+          studentId,
+          username,
+          password
+        });
+        Swal.fire('Success!', 'New student has been added.', 'success');
+      }
+
+      fetchStudents(); // Refresh the student list after saving
+      resetForm(); // Reset form after submission
     } catch (error) {
-      Swal.fire('Error!', 'There was an error updating the student data.', 'error');
+      console.error('Error saving student data: ', error);
+      Swal.fire('Error!', 'There was an error saving the student data.', 'error');
     }
   };
 
@@ -172,16 +211,47 @@ export default function Students() {
     [students, searchQuery]
   );
 
+  const handleEdit = (student) => {
+    setFormData({
+      firstName: student.firstName,
+      middleName: student.middleName,
+      lastName: student.lastName,
+      gender: student.gender,
+      province: student.province,
+      municipality: student.municipality,
+      barangay: student.barangay,
+      street: student.street,
+      mobileNumber: student.mobileNumber,
+      dob: student.dob,
+      course: student.course,
+      department: student.department,
+      semester: student.semester,
+      yearLevel: student.yearLevel
+    });
+
+    setCurrentStudent(student);
+  };
+
+
   const columns = [
     { name: 'ID', selector: row => row.studentId, sortable: true },
     { name: 'Name', selector: row => `${row.firstName} ${row.lastName}`, sortable: true },
-    { name: 'Course', selector: row => row.course, sortable: true },
     {
       name: 'Actions',
       cell: row => (
         <>
-          <button className="text-blue-600 hover:text-blue-800 mr-2" onClick={() => setCurrentStudent(row)}>Edit</button>
-          <button className="text-red-600 hover:text-red-800" onClick={() => handleStudentDelete(row.id)}>Delete</button>
+          <button
+            className="text-blue-600 hover:text-blue-800 mr-2 bg-transparent hover:bg-slate-300"
+            onClick={() => handleEdit(row)}
+          >
+            <FaEdit />
+          </button>
+          <button
+            className="text-red-600 hover:text-red-800 bg-transparent hover:bg-slate-300"
+            onClick={() => handleStudentDelete(row.id)}
+          >
+            <FaTrashAlt />
+          </button>
         </>
       ),
     },
@@ -209,14 +279,33 @@ export default function Students() {
     }
 
     if (field === 'province') {
-      fetchData(`https://psgc.gitlab.io/api/provinces/${value}/cities-municipalities`, setMunicipalities);
+      // Reset municipality and barangay when province is changed
+      setMunicipalities([]);
       setBarangays([]);
+      fetchData(`https://psgc.gitlab.io/api/provinces/${value}/cities-municipalities`, setMunicipalities);
     }
 
     if (field === 'municipality') {
+      // Fetch barangays based on municipality
+      setBarangays([]);  // Reset barangays before fetching new ones
       fetchData(`https://psgc.gitlab.io/api/cities-municipalities/${value}/barangays`, setBarangays);
     }
   };
+
+  // Effect to trigger fetching of municipalities when province is set
+  useEffect(() => {
+    if (formData.province) {
+      fetchData(`https://psgc.gitlab.io/api/provinces/${formData.province}/cities-municipalities`, setMunicipalities);
+    }
+  }, [formData.province]);
+
+  // Effect to trigger fetching of barangays when municipality is set
+  useEffect(() => {
+    if (formData.municipality) {
+      fetchData(`https://psgc.gitlab.io/api/cities-municipalities/${formData.municipality}/barangays`, setBarangays);
+    }
+  }, [formData.municipality]);
+
 
   return (
     <Layout>
@@ -226,16 +315,18 @@ export default function Students() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <input type="text" placeholder="First Name" value={formData.firstName} onChange={(e) => handleChange('firstName', e.target.value)} required className="border p-2 rounded-md" />
             <input type="text" placeholder="Last Name" value={formData.lastName} onChange={(e) => handleChange('lastName', e.target.value)} required className="border p-2 rounded-md" />
+            <input type="text" placeholder="Middle Name" value={formData.middleName} onChange={(e) => handleChange('middleName', e.target.value)} required className="border p-2 rounded-md" />
             <Select value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)} options={Object.entries(GENDERS).map(([key, value]) => ({ code: key, name: value }))} placeholder="Select Gender" />
-            <Select value={formData.course} onChange={(e) => handleChange('course', e.target.value)} options={allCourses[formData.department] || []} placeholder="Select Course" />
             <Select value={formData.department} onChange={(e) => handleChange('department', e.target.value)} options={departments} placeholder="Select Department" />
+            <Select value={formData.course} onChange={(e) => handleChange('course', e.target.value)} options={allCourses[formData.department] || []} placeholder="Select Course" />
             <Select value={formData.province} onChange={(e) => handleChange('province', e.target.value)} options={provinces} placeholder="Select Province" />
             <Select value={formData.municipality} onChange={(e) => handleChange('municipality', e.target.value)} options={municipalities} placeholder="Select Municipality" />
             <Select value={formData.barangay} onChange={(e) => handleChange('barangay', e.target.value)} options={barangays} placeholder="Select Barangay" />
             <input type="text" placeholder="Street/Housing No." value={formData.street} onChange={(e) => handleChange('street', e.target.value)} className="border p-2 rounded-md" />
             <input type="text" placeholder="Mobile Number" value={formData.mobileNumber} onChange={(e) => handleChange('mobileNumber', e.target.value)} required className="border p-2 rounded-md" />
             <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} required className="border p-2 rounded-md" />
-            <Select value={formData.semester} onChange={(e) => handleChange('semester', e.target.value)} options={Object.entries(SEMESTERS).map(([key, value]) => ({ code: key, name: value }))} placeholder="Select Semester" />
+            <Select value={formData.semester} onChange={(e) => handleChange('semester', e.target.value)} options={Object.entries(SEMESTERS).map(([code, name]) => ({ code, name }))} placeholder="Select Semester" />
+            <Select value={formData.yearLevel} onChange={(e) => handleChange('yearLevel', e.target.value)} options={Object.entries(YEAR_LEVELS).map(([code, name]) => ({ code, name }))} placeholder="Select Year Level" />
             <input type="text" value={getCurrentSchoolYear()} readOnly aria-label="Current School Year" className="border border-gray-300 p-3 rounded-md bg-gray-100 cursor-not-allowed" />
             <input type="text" value={currentSchoolId} readOnly className="border border-gray-300 p-3 rounded-md bg-gray-100 cursor-not-allowed" />
           </div>

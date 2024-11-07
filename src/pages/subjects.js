@@ -13,7 +13,7 @@ export default function SubjectManagement() {
       try {
         const boardCourses = await getDocs(collection(db, 'Departments/Board Courses/Courses'));
         const nonBoardCourses = await getDocs(collection(db, 'Departments/Non-Board Courses/Courses'));
-        
+
         setCourses([
           ...boardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
           ...nonBoardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),

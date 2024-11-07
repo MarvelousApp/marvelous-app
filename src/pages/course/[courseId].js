@@ -229,7 +229,7 @@ export default function CourseDetails() {
                   <div className="mb-4">
                     <label className="block mb-2" htmlFor="semester">Semester</label>
                     <select id="semester" value={formData.semester} onChange={(e) => setFormData({ ...formData, semester: e.target.value })} className="border border-gray-300 rounded px-4 py-2 w-full">
-                      {['1st Sem', '2nd Sem'].map(sem => <option key={sem} value={sem}>{sem}</option>)}
+                      {['1st Sem', '2nd Sem', 'Summer'].map(sem => <option key={sem} value={sem}>{sem}</option>)}
                     </select>
                   </div>
                   <button type="submit" className="w-full bg-blue-600 text-white rounded py-2 hover:bg-blue-700 transition">{isEditMode ? 'Update Subject' : 'Add Subject'}</button>
