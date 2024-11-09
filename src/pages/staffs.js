@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, setDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, setDoc, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, limit, writeBatch } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import DataTable from 'react-data-table-component';
 import Layout from '@/components/Layout';
@@ -16,7 +16,6 @@ export default function StaffManagement() {
     firstName: '',
     lastName: '',
     gender: '',
-    address: '',
     mobileNumber: '',
     position: '',
     department: '',
@@ -41,10 +40,14 @@ export default function StaffManagement() {
       setDepartments(departments);
 
       const coursesByDept = {};
-      for (const department of departments) {
-        const courseSnapshot = await getDocs(collection(db, `Departments/${department.id}/Courses`));
-        coursesByDept[department.id] = courseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      }
+      const courseQueries = departments.map(department =>
+        getDocs(collection(db, `Departments/${department.id}/Courses`))
+      );
+      const courseSnapshots = await Promise.all(courseQueries);
+      courseSnapshots.forEach((courseSnapshot, index) => {
+        coursesByDept[departments[index].id] = courseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      });
+
       setAllCourses(coursesByDept);
     } catch (error) {
       console.error("Error fetching data: ", error);
@@ -87,7 +90,7 @@ export default function StaffManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { firstName, lastName, gender, address, mobileNumber, position, department, course } = formData;
+    const { firstName, lastName, gender, mobileNumber, position, department, course } = formData;
 
     try {
       if (selectedStaff) {
@@ -96,7 +99,6 @@ export default function StaffManagement() {
           firstName,
           lastName,
           gender,
-          address,
           mobileNumber,
           position,
           department: position === 'Registrar' ? '' : department,
@@ -113,7 +115,6 @@ export default function StaffManagement() {
           firstName,
           lastName,
           gender,
-          address,
           mobileNumber,
           position,
           department: position === 'Registrar' ? '' : department,
@@ -149,7 +150,10 @@ export default function StaffManagement() {
     });
     if (confirmed.isConfirmed) {
       try {
-        await deleteDoc(doc(db, 'Staff', staffMember.id));
+        const batch = writeBatch(db);
+        const staffRef = doc(db, 'Staff', staffMember.id);
+        batch.delete(staffRef);
+        await batch.commit();
         Swal.fire('Deleted!', 'Staff member has been deleted.', 'success');
         await fetchData();
       } catch (error) {
@@ -164,7 +168,6 @@ export default function StaffManagement() {
       firstName: '',
       lastName: '',
       gender: '',
-      address: '',
       mobileNumber: '',
       position: '',
       department: '',
@@ -179,9 +182,7 @@ export default function StaffManagement() {
   ), [staff, searchQuery]);
 
   const columns = useMemo(() => [
-    { name: 'Staff ID', selector: row => row.staffId, sortable: true },
-    { name: 'First Name', selector: row => row.firstName, sortable: true },
-    { name: 'Last Name', selector: row => row.lastName, sortable: true },
+    { name: 'Name', selector: row => row.firstName + " " + row.lastName, sortable: true },
     { name: 'Position', selector: row => row.position, sortable: true },
     { name: 'Department', selector: row => row.department, sortable: true },
     { name: 'Course', selector: row => row.course, sortable: true },
@@ -231,7 +232,7 @@ export default function StaffManagement() {
       <input
         type="text"
         placeholder="Search Staff..."
-        className="border rounded-md p-2 w-full"
+        className="w-64 px-4 py-2 border border-gray-300 rounded-lg"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
       />
@@ -240,8 +241,8 @@ export default function StaffManagement() {
 
   return (
     <Layout>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h1 className="text-3xl font-bold mb-4">Staff Management</h1>
+      <motion.div className="p-4">
+        <h2 className="text-2xl font-semibold">Staff Management</h2>
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md mb-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input
@@ -274,14 +275,6 @@ export default function StaffManagement() {
               placeholder="Mobile Number"
               value={formData.mobileNumber}
               onChange={(e) => handleChange('mobileNumber', e.target.value)}
-              className="border rounded-md p-2"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Address"
-              value={formData.address}
-              onChange={(e) => handleChange('address', e.target.value)}
               className="border rounded-md p-2"
               required
             />
@@ -322,14 +315,16 @@ export default function StaffManagement() {
             <button type="button" onClick={resetForm} className="bg-gray-300 text-white py-2 px-4 rounded-md hover:bg-gray-400"><FaUndo className="inline mr-1" />Reset</button>
           </div>
         </form>
-        <DataTable
-          columns={columns}
-          data={filteredStaff}
-          customStyles={customStyles}
-          subHeader
-          subHeaderComponent={subHeaderComponentMemo}
-          pagination
-        />
+        <div className="mt-8">
+          <DataTable
+            title="Staff List"
+            columns={columns}
+            data={filteredStaff}
+            customStyles={customStyles}
+            subHeader
+            subHeaderComponent={subHeaderComponentMemo}
+          />
+        </div>
       </motion.div>
     </Layout>
   );

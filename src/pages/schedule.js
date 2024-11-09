@@ -12,15 +12,19 @@ export default function ScheduleManagement() {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const fetchCollection = async (path) => {
-          const snapshot = await getDocs(collection(db, path));
-          return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        };
+        // Fetch both collections concurrently with Promise.all
+        const [boardCourses, nonBoardCourses] = await Promise.all([
+          getDocs(collection(db, 'Departments/Board Courses/Courses')),
+          getDocs(collection(db, 'Departments/Non-Board Courses/Courses')),
+        ]);
 
-        const boardCourses = await fetchCollection('Departments/Board Courses/Courses');
-        const nonBoardCourses = await fetchCollection('Departments/Non-Board Courses/Courses');
+        // Combine data from both collections
+        const allCourses = [
+          ...boardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          ...nonBoardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        ];
 
-        setCourses([...boardCourses, ...nonBoardCourses]);
+        setCourses(allCourses);
       } catch (error) {
         console.error("Error fetching courses:", error);
       }

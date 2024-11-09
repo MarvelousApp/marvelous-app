@@ -4,9 +4,10 @@ import { FaSearch, FaSave, FaUndo } from 'react-icons/fa';
 import Layout from '@/components/Layout';
 import DataTable from 'react-data-table-component';
 import { db } from '@/lib/firebaseConfig';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, limit, setDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import { FaEdit, FaTrashAlt } from 'react-icons/fa';
+import debounce from 'lodash/debounce';
 
 const SEMESTERS = {
   '1st Sem': '1st Sem',
@@ -29,7 +30,6 @@ const GENDERS = {
 
 const INITIAL_FORM_STATE = {
   firstName: '', middleName: '', lastName: '', gender: '',
-  province: '', municipality: '', barangay: '', street: '',
   mobileNumber: '', dob: '', course: '', department: '', semester: '', yearLevel: ''
 };
 
@@ -61,23 +61,17 @@ export default function Students() {
   const [currentStudent, setCurrentStudent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
-  const [provinces, setProvinces] = useState([]);
-  const [municipalities, setMunicipalities] = useState([]);
-  const [barangays, setBarangays] = useState([]);
   const [currentSchoolId, setCurrentSchoolId] = useState('');
 
-  const fetchData = (url, setter) => {
-    fetch(url)
-      .then(response => response.json())
-      .then(data => setter(data));
-  };
+  const debouncedSearch = useMemo(() => debounce((query) => {
+    setSearchQuery(query);
+  }, 500), []);
 
   useEffect(() => {
-    fetchData('https://psgc.gitlab.io/api/provinces', setProvinces);
     fetchStudents();
     fetchDepartments();
     fetchCurrentSchoolId();
-  }, [fetchData]);
+  }, []);
 
   const fetchCurrentSchoolId = async () => {
     const { studentId } = await getNextStudentId();
@@ -145,7 +139,9 @@ export default function Students() {
 
   const handleStudentSubmit = async (studentData) => {
     const schoolYear = getCurrentSchoolYear();
-    const studentId = currentStudent ? currentStudent.id : await getNextStudentId().studentId;
+
+    // Ensure that studentId is assigned properly.
+    const studentId = currentStudent ? currentStudent.studentId : (await getNextStudentId()).studentId;
 
     const username = studentId;
     const password = `${studentData.firstName.slice(0, 2)}${studentData.lastName.charAt(0).toUpperCase()}${studentData.lastName.slice(1).toLowerCase()}`;
@@ -171,8 +167,8 @@ export default function Students() {
         Swal.fire('Success!', 'New student has been added.', 'success');
       }
 
-      fetchStudents(); // Refresh the student list after saving
-      resetForm(); // Reset form after submission
+      fetchStudents();
+      resetForm();
     } catch (error) {
       console.error('Error saving student data: ', error);
       Swal.fire('Error!', 'There was an error saving the student data.', 'error');
@@ -192,7 +188,7 @@ export default function Students() {
       try {
         await deleteDoc(doc(db, 'Students', studentId));
         Swal.fire('Deleted!', 'Student has been deleted.', 'success');
-        fetchStudents();
+        setStudents(prevStudents => prevStudents.filter(student => student.id !== studentId));
       } catch (error) {
         Swal.fire('Error!', 'There was an error deleting the student.', 'error');
       }
@@ -202,8 +198,6 @@ export default function Students() {
   const resetForm = () => {
     setCurrentStudent(null);
     setFormData(INITIAL_FORM_STATE);
-    setMunicipalities([]);
-    setBarangays([]);
   };
 
   const filteredStudents = useMemo(() =>
@@ -217,10 +211,6 @@ export default function Students() {
       middleName: student.middleName,
       lastName: student.lastName,
       gender: student.gender,
-      province: student.province,
-      municipality: student.municipality,
-      barangay: student.barangay,
-      street: student.street,
       mobileNumber: student.mobileNumber,
       dob: student.dob,
       course: student.course,
@@ -231,7 +221,6 @@ export default function Students() {
 
     setCurrentStudent(student);
   };
-
 
   const columns = [
     { name: 'ID', selector: row => row.studentId, sortable: true },
@@ -254,21 +243,8 @@ export default function Students() {
           </button>
         </>
       ),
-    },
+    }
   ];
-
-  const subHeaderComponentMemo = useMemo(() => (
-    <div className="flex items-center p-2">
-      <FaSearch className="text-gray-400 mr-2" />
-      <input
-        type="text"
-        placeholder="Search Student..."
-        className="border rounded-md p-2 w-full"
-        value={searchQuery}
-        onChange={e => setSearchQuery(e.target.value)}
-      />
-    </div>
-  ), [searchQuery]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -277,39 +253,11 @@ export default function Students() {
       const selectedCourses = allCourses[value] || [];
       setFormData(prev => ({ ...prev, course: '', department: value }));
     }
-
-    if (field === 'province') {
-      // Reset municipality and barangay when province is changed
-      setMunicipalities([]);
-      setBarangays([]);
-      fetchData(`https://psgc.gitlab.io/api/provinces/${value}/cities-municipalities`, setMunicipalities);
-    }
-
-    if (field === 'municipality') {
-      // Fetch barangays based on municipality
-      setBarangays([]);  // Reset barangays before fetching new ones
-      fetchData(`https://psgc.gitlab.io/api/cities-municipalities/${value}/barangays`, setBarangays);
-    }
-  };
-
-  // Effect to trigger fetching of municipalities when province is set
-  useEffect(() => {
-    if (formData.province) {
-      fetchData(`https://psgc.gitlab.io/api/provinces/${formData.province}/cities-municipalities`, setMunicipalities);
-    }
-  }, [formData.province]);
-
-  // Effect to trigger fetching of barangays when municipality is set
-  useEffect(() => {
-    if (formData.municipality) {
-      fetchData(`https://psgc.gitlab.io/api/cities-municipalities/${formData.municipality}/barangays`, setBarangays);
-    }
-  }, [formData.municipality]);
-
+  }
 
   return (
     <Layout>
-      <motion.div className="p-4">
+      <motion.div className="p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
         <h1 className="text-3xl font-bold mb-6 border-b pb-2">Student Management</h1>
         <form onSubmit={(e) => { e.preventDefault(); handleStudentSubmit(formData); resetForm(); }} className="bg-white shadow-md rounded-lg p-6 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -319,10 +267,6 @@ export default function Students() {
             <Select value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)} options={Object.entries(GENDERS).map(([key, value]) => ({ code: key, name: value }))} placeholder="Select Gender" />
             <Select value={formData.department} onChange={(e) => handleChange('department', e.target.value)} options={departments} placeholder="Select Department" />
             <Select value={formData.course} onChange={(e) => handleChange('course', e.target.value)} options={allCourses[formData.department] || []} placeholder="Select Course" />
-            <Select value={formData.province} onChange={(e) => handleChange('province', e.target.value)} options={provinces} placeholder="Select Province" />
-            <Select value={formData.municipality} onChange={(e) => handleChange('municipality', e.target.value)} options={municipalities} placeholder="Select Municipality" />
-            <Select value={formData.barangay} onChange={(e) => handleChange('barangay', e.target.value)} options={barangays} placeholder="Select Barangay" />
-            <input type="text" placeholder="Street/Housing No." value={formData.street} onChange={(e) => handleChange('street', e.target.value)} className="border p-2 rounded-md" />
             <input type="text" placeholder="Mobile Number" value={formData.mobileNumber} onChange={(e) => handleChange('mobileNumber', e.target.value)} required className="border p-2 rounded-md" />
             <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} required className="border p-2 rounded-md" />
             <Select value={formData.semester} onChange={(e) => handleChange('semester', e.target.value)} options={Object.entries(SEMESTERS).map(([code, name]) => ({ code, name }))} placeholder="Select Semester" />
@@ -339,12 +283,22 @@ export default function Students() {
             </button>
           </div>
         </form>
+        <div className="flex justify-between items-center mb-4">
+          <div className="w-1/2">
+            <input
+              type="text"
+              placeholder="Search student"
+              className="border p-2 rounded-md w-full"
+              onChange={(e) => debouncedSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
         <DataTable
           columns={columns}
           data={filteredStudents}
           pagination
-          subHeader
-          subHeaderComponent={subHeaderComponentMemo}
+          highlightOnHover
         />
       </motion.div>
     </Layout>

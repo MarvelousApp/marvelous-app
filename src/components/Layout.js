@@ -1,4 +1,3 @@
-// Layout.js
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -51,7 +50,9 @@ export default function Layout({ children }) {
     } else {
       router.push('/');
     }
-    setLoading(false);
+    setTimeout(() => {
+      setLoading(false);
+    }, 1000);
   }, [router]);
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
