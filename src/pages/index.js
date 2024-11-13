@@ -32,6 +32,7 @@ export default function Login() {
       setLocalStorageItem('isAuthenticated', 'true');
       setLocalStorageItem("userID", staffData.staffID);
       setLocalStorageItem("userPosition", staffData.position);
+      setLocalStorageItem("department", staffData.department)
 
       Swal.fire({
         icon: 'success',

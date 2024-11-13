@@ -39,6 +39,12 @@ export default function ScheduleDetailsPage() {
         fetchSchedule();
     }, [scheduleId]);
 
+    // Helper function to get the current school year
+    const getCurrentSchoolYear = () => {
+        const currentYear = new Date().getFullYear();
+        return new Date().getMonth() >= 6 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+    };
+
     if (!schedule) {
         return (
             <Layout>
@@ -49,10 +55,9 @@ export default function ScheduleDetailsPage() {
         );
     }
 
-    const { courseId, subjectId, days, description, room, semester, timeStart, timeEnd, teacher, yearLevel } = schedule;
+    const {id, courseId, subjectId, days, description, room, semester, timeStart, timeEnd, teacher, yearLevel } = schedule;
 
-    // Create a string for the QR code (e.g., URL with scheduleId or attendance API endpoint)
-    const qrCodeValue = `${window.location.origin}/attendance/mark/${scheduleId}`;  // Replace with your actual attendance endpoint
+    const qrCodeValue = `${window.location.origin}/attendance/mark/${scheduleId}?schoolYear=${getCurrentSchoolYear()}`;
 
     return (
         <Layout>
@@ -66,7 +71,7 @@ export default function ScheduleDetailsPage() {
                 <button onClick={back} className="flex items-center mb-4 px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 transition">
                     <FaArrowLeft className="mr-2" /> Back
                 </button>
-                <h1 className="text-3xl font-bold mb-6 border-b pb-2">{courseId} - {subjectId}</h1>
+                <h1 className="text-3xl font-bold mb-6 border-b pb-2">{description}</h1>
 
                 <motion.div
                     className="p-4 bg-white rounded-lg shadow"

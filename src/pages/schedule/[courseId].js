@@ -112,7 +112,7 @@ export default function ScheduleDetails() {
       return;
     }
 
-    await setDoc(doc(collection(db, 'Schedules'), `${courseId}-${subjectId}`), {
+    await setDoc(doc(collection(db, 'Schedules'), `${subjectId}`), {
       courseId, subjectId, ...editData
     });
     if (selectedSemester) fetchSubjects(selectedSemester.value);

@@ -37,6 +37,8 @@ const LoadingScreen = () => {
   );
 };
 
+console.log(getLocalStorageItem("userPosition"));
+
 export default function Layout({ children }) {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -64,15 +66,17 @@ export default function Layout({ children }) {
     router.push('/');
   };
 
+
+
   const getFilteredNavItems = () => {
     const userPosition = getLocalStorageItem("userPosition");
-    if (userPosition === "dean") {
-      return navItems.filter(item => item.label !== "Staffs");
+    if (userPosition === "Dean") {
+      return navItems.filter(item => !["Staffs", "Students"].includes(item.label));
     }
-    if (userPosition === "teacher") {
-      return navItems.filter(item => !["Staffs", "Students", "Schedule"].includes(item.label));
+    if (userPosition === "Teacher") {
+      return navItems.filter(item => !["Staffs", "Students", "Subjects", "Schedule"].includes(item.label));
     }
-    if (userPosition === "registrar") {
+    if (userPosition === "Registrar") {
       return navItems.filter(item => !["Grading", "Attendance"].includes(item.label));
     }
     return navItems;

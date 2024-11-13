@@ -12,17 +12,30 @@ export default function ScheduleManagement() {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        // Fetch both collections concurrently with Promise.all
-        const [boardCourses, nonBoardCourses] = await Promise.all([
-          getDocs(collection(db, 'Departments/Board Courses/Courses')),
-          getDocs(collection(db, 'Departments/Non-Board Courses/Courses')),
-        ]);
+        // Get user position and department from localStorage
+        const userPosition = localStorage.getItem("userPosition");
+        const userDepartment = localStorage.getItem("department");
 
-        // Combine data from both collections
-        const allCourses = [
-          ...boardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-          ...nonBoardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        ];
+        let allCourses = [];
+
+        // Fetch courses based on the user's position (if the user is a Dean)
+        if (userPosition === "Dean") {
+          // Construct the collection path dynamically based on the user's department
+          const departmentCoursesRef = collection(db, `Departments/${userDepartment}/Courses`);
+          const departmentCourses = await getDocs(departmentCoursesRef);
+          allCourses = departmentCourses.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } else {
+          // If the user is not a Dean, fetch both board and non-board courses
+          const [boardCourses, nonBoardCourses] = await Promise.all([
+            getDocs(collection(db, 'Departments/Board Courses/Courses')),
+            getDocs(collection(db, 'Departments/Non-Board Courses/Courses')),
+          ]);
+
+          allCourses = [
+            ...boardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            ...nonBoardCourses.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          ];
+        }
 
         setCourses(allCourses);
       } catch (error) {

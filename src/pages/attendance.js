@@ -12,14 +12,14 @@ export default function AttendancePage() {
 
   const userId = getLocalStorageItem('userID');
   const userPosition = getLocalStorageItem('userPosition');
-  const currentDay = new Date().toLocaleString('en-us', { weekday: 'long' }); // Calculate the current day
+  const currentDay = new Date().toLocaleString('en-us', { weekday: 'long' });
 
   useEffect(() => {
     const scheduleQuery = userPosition === 'Admin'
       ? collection(db, 'Schedules')
       : query(
           collection(db, 'Schedules'),
-          where('teacher', '==', userId),
+          where('Teacher' || 'Dean', '==', userId),
           where('days', 'array-contains', currentDay)
         );
 
@@ -36,8 +36,7 @@ export default function AttendancePage() {
     return () => unsubscribe();
   }, [userId, userPosition, currentDay]);
 
-  const handleScheduleClick = (courseId, subjectId) => {
-    const scheduleId = `${courseId}-${subjectId}`;
+  const handleScheduleClick = (scheduleId) => {
     router.push(`/attendance/${encodeURIComponent(scheduleId)}`);
   };
 
@@ -61,13 +60,13 @@ export default function AttendancePage() {
           {schedules.map(({ id, courseId, subjectId, days, description, room, semester, timeStart, timeEnd, teacher, yearLevel }) => (
             <motion.div
               key={id}
-              onClick={() => handleScheduleClick(courseId, subjectId)}
+              onClick={() => handleScheduleClick(id)}
               className="p-4 bg-white rounded-lg shadow hover:shadow-lg cursor-pointer transition-transform transform hover:scale-105"
               whileHover={{ scale: 1.05, boxShadow: "0 8px 16px rgba(0,0,0,0.2)" }}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              <h2 className="text-xl font-semibold mb-2 border-b pb-2">{courseId} - {subjectId}</h2>
+              <h2 className="text-xl font-semibold mb-2 border-b pb-2">{id}</h2>
               <p className="text-gray-500">{description}</p>
               <p className="text-sm text-gray-400">Days: {days.join(', ')}</p>
               <p className="text-sm text-gray-500">Time: {timeStart} - {timeEnd}</p>
