@@ -2,18 +2,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { FaChalkboardTeacher, FaUniversity, FaHome, FaUsers, FaBook, FaBars, FaTimes, FaSignOutAlt, FaClipboard, FaClipboardList, FaChartBar, FaCalendarWeek } from 'react-icons/fa';
+import { FaChalkboardTeacher, FaUniversity, FaHome, FaBook, FaBars, FaTimes, FaSignOutAlt, FaCalendarWeek } from 'react-icons/fa';
 import { getLocalStorageItem, removeLocalStorageItem } from '@/lib/storageHelper';
 
 const navItems = [
   { href: "/dashboard", icon: <FaHome />, label: "Dashboard" },
   { href: "/staffs", icon: <FaChalkboardTeacher />, label: "Staffs" },
-  { href: "/students", icon: <FaUsers />, label: "Students" },
   { href: "/subjects", icon: <FaBook />, label: "Subjects" },
   { href: "/schedule", icon: <FaCalendarWeek />, label: "Schedule" },
-  { href: "/grade", icon: <FaClipboard />, label: "Grading" },
-  { href: "/attendance", icon: <FaClipboardList />, label: "Attendance" },
-  { href: "/report", icon: <FaChartBar />, label: "Report" },
 ];
 
 const NavigationItem = ({ href, icon, label, isActive }) => (
@@ -71,13 +67,10 @@ export default function Layout({ children }) {
   const getFilteredNavItems = () => {
     const userPosition = getLocalStorageItem("userPosition");
     if (userPosition === "Dean") {
-      return navItems.filter(item => !["Staffs", "Students"].includes(item.label));
+      return navItems.filter(item => !["Staffs"].includes(item.label));
     }
     if (userPosition === "Teacher") {
-      return navItems.filter(item => !["Staffs", "Students", "Subjects", "Schedule"].includes(item.label));
-    }
-    if (userPosition === "Registrar") {
-      return navItems.filter(item => !["Grading", "Attendance"].includes(item.label));
+      return navItems.filter(item => !["Staffs", "Subjects", "Schedule"].includes(item.label));
     }
     return navItems;
   };

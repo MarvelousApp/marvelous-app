@@ -10,11 +10,15 @@ module.exports = {
         primary: '#1B329A',
         'primary-dark': '#14266D',
         secondary: '#59B8F0',
+        'secondary-dark': '#3A8BBF', // Add a dark version of secondary
         accent: '#E2B13B',
+        'accent-dark': '#B38A2E', // Add a darker version of accent
         neutral: '#F9FAFB',
+        background: "var(--background)",
+        foreground: "var(--foreground)",
       },
       fontFamily: {
-        poppins: ['Poppins', 'sans-serif'],
+        sans: ['Poppins', 'Arial', 'Helvetica', 'sans-serif'], // Set Poppins as default
       },
     },
   },
